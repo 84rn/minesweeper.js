@@ -3,6 +3,83 @@
 
 // ------------- CLASSES ---------------
 
+class Board {
+
+    constructor(x, y, size) {
+        this.size = size;
+        this.xPosition = x;
+        this.yPosition = y;
+        this.children = [];
+        this.tileSize = 50;
+
+        let rect = new Rectangle({x, y}, size * this.tileSize, size * this.tileSize, '#00FF00', '#550033');
+        this.children.push(rect);
+
+        for (let h = 0; h < size; h++) {
+            for (let w = 0; w < size; w++)
+            {
+                let field = new Field(x + w * this.tileSize, y + h * this.tileSize, this.tileSize);
+                this.children.push(field);
+            }
+        }
+    }
+
+    draw(ctx) {
+        for (let child of this.children) {
+            child.draw(ctx);
+        }
+
+    }
+
+    clicked(x, y) {
+        if (x > this.xPosition && x < this.xPosition + this.size * this.tileSize &&
+            y > this.yPosition && y < this.yPosition + this.size * this.tileSize) {
+            this.children.find((element, index, array) => {
+                if (x > element.xPosition && x < element.xPosition + this.tileSize &&
+                    y > element.yPosition && y < element.yPosition + this.tileSize &&
+                    element.__proto__.hasOwnProperty('clicked')) {
+                    return true;
+                } else {
+                    return false;
+                }
+            })?.clicked();
+        }
+    }
+}
+
+class Field {
+
+    constructor(x, y, size) {
+        this.xPosition = x;
+        this.yPosition = y;
+        this.rect = new Rectangle({x, y}, size, size, '#AAFFF4', '#FF0000');
+
+        this.uncovered = false;
+
+        Field.nextIndex = Field.nextIndex == undefined ? 0: ++Field.nextIndex;
+        this.index = Field.nextIndex;
+    }
+
+    draw(ctx) {
+        this.rect.draw(ctx);
+
+        if (this.uncovered) {
+            this.rect.color = 'coral';
+        }
+    }
+
+    clicked() {
+        console.log(`Clicked on field no. ${this.index}`);
+        this.uncovered = true;
+    }
+}
+
+
+class Button {
+
+    constructor() {}
+}
+
 
 class Line {
 
@@ -72,16 +149,20 @@ class Circle {
 
 class Rectangle {
 
-    constructor(anchorPoint, width, height, color) {
-        console.log(`Creating rectangle: [${anchorPoint.x}, ${anchorPoint.y}] [${width}x${height}] [${color}]`);
+    constructor(anchorPoint, width, height, color, borderColor = false) {
+        console.log(`Creating rectangle: [${anchorPoint.x}, ${anchorPoint.y}] [${width}x${height}] [${color}+[${borderColor}]]`);
         this.anchorPoint = anchorPoint;
         this.width = width;
         this.height = height;
         this.color = color;
+        this.borderColor = borderColor;
     }
 
     draw(ctx) {
         this._draw(ctx, this.anchorPoint, this.width, this.height, this.color);
+        if (this.borderColor) {
+            this._draw(ctx, this.anchorPoint, this.width, this.height, this.borderColor, false);
+        }
     }
 
     // Add update method with mouse coordinates
@@ -131,6 +212,13 @@ class Game {
     }
 
     start() {
+
+        // 10x10 board
+        let boardSize = 10;
+
+        this.board = new Board(100, 100, boardSize);
+        this.drawableObjects.push(this.board);
+
         requestAnimationFrame(this._loop);
     }
 
@@ -215,6 +303,8 @@ class Game {
 
         // Left mouse button
         if (event.buttons == 1) {
+            // Check for clicks on board
+            this.board?.clicked(point.x, point.y);
 
         } else if (event.buttons == 4) {
 
