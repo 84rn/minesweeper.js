@@ -7,18 +7,21 @@ class Board {
 
     constructor(x, y, size) {
         this.size = size;
+        this.tileSize = 50;
         this.xPosition = x;
         this.yPosition = y;
+
         this.children = [];
-        this.tileSize = 50;
 
         let rect = new Rectangle({x, y}, size * this.tileSize, size * this.tileSize, '#00FF00', '#550033');
         this.children.push(rect);
 
+        // Add fields
         for (let h = 0; h < size; h++) {
             for (let w = 0; w < size; w++)
             {
                 let field = new Field(x + w * this.tileSize, y + h * this.tileSize, this.tileSize);
+                field.item = new Bomb(field);
                 this.children.push(field);
             }
         }
@@ -28,13 +31,12 @@ class Board {
         for (let child of this.children) {
             child.draw(ctx);
         }
-
     }
 
     clicked(x, y) {
         if (x > this.xPosition && x < this.xPosition + this.size * this.tileSize &&
             y > this.yPosition && y < this.yPosition + this.size * this.tileSize) {
-            this.children.find((element, index, array) => {
+            let clickedField = this.children.find((element, index, array) => {
                 if (x > element.xPosition && x < element.xPosition + this.tileSize &&
                     y > element.yPosition && y < element.yPosition + this.tileSize &&
                     element.__proto__.hasOwnProperty('clicked')) {
@@ -42,8 +44,44 @@ class Board {
                 } else {
                     return false;
                 }
-            })?.clicked();
+            })
+
+            clickedField?.clicked(x - clickedField.xPosition, y - clickedField.yPosition);
         }
+    }
+}
+
+
+class FieldItem {
+
+    constructor(field) {
+        this.field = field;
+    }
+
+    clicked() {
+
+    }
+
+    draw(ctx) {
+
+    }
+}
+
+class Bomb extends FieldItem {
+
+    constructor(field) {
+        super(field);
+        this.circle = new Circle({x: this.field.xPosition + this.field.size / 2,
+                                y: this.field.yPosition + this.field.size / 2},
+                                6, '#452200');
+    }
+
+    clicked() {
+        console.log("BOMB");
+    }
+
+    draw(ctx) {
+       this.circle.draw(ctx)
     }
 }
 
@@ -52,6 +90,7 @@ class Field {
     constructor(x, y, size) {
         this.xPosition = x;
         this.yPosition = y;
+        this.size = size;
         this.rect = new Rectangle({x, y}, size, size, '#AAFFF4', '#FF0000');
 
         this.uncovered = false;
@@ -65,13 +104,28 @@ class Field {
 
         if (this.uncovered) {
             this.rect.color = 'coral';
+
+            this?.item?.draw(ctx);
         }
     }
 
-    clicked() {
-        console.log(`Clicked on field no. ${this.index}`);
-        this.uncovered = true;
+    clicked(x, y) {
+        console.log(`Clicked on field no. ${this.index} [${x}, ${y}]`);
+        if (!this.uncovered) {
+            this.uncovered = true;
+            this._item?.clicked();
+        }
     }
+
+    set item(value) {
+        this._item = value;
+    }
+
+    get item() {
+        return this._item;
+    }
+
+    _item = undefined;
 }
 
 
