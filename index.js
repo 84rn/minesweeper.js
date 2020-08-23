@@ -10,9 +10,12 @@ class Board {
         this.tileSize = 50;
         this.xPosition = x;
         this.yPosition = y;
+        this.bombNumber = 60;
 
         this.children = [];
+        this.fields = []
 
+        // Add background
         let rect = new Rectangle({x, y}, size * this.tileSize, size * this.tileSize, '#00FF00', '#550033');
         this.children.push(rect);
 
@@ -21,10 +24,73 @@ class Board {
             for (let w = 0; w < size; w++)
             {
                 let field = new Field(x + w * this.tileSize, y + h * this.tileSize, this.tileSize);
-                field.item = new Bomb(field);
+                field.x = w;
+                field.y = h;
+
                 this.children.push(field);
+                this.fields.push(field);
+
             }
         }
+
+        // Fill with bombs
+        for(let num = this.bombNumber; num > 0; --num) {
+            let randomIndex = Math.floor(Math.random() * Field.nextIndex);
+            let field = this.fields.find((element, index, array) => {
+                if (element.index == randomIndex) {
+                    console.log(`RETURNING FIELD ${element.index}`);
+                    return true;
+                }
+
+                return false;
+            });
+            field.item = new Bomb(field);
+        }
+
+        // Count bombs nearby for each field without a bomb
+        for (let field of this.fields) {
+            if (field.item instanceof Bomb)
+                continue;
+            field.neighbours = this._getFieldNeighbours(field);
+            field.bombsNearby = field.neighbours.filter((element) => {
+                return element.item instanceof Bomb;
+            }).length;
+
+        }
+
+    }
+
+    _getFieldAt(x, y) {
+        return this.fields.find((element) => {
+            if (element.x == x && element.y == y) {
+                return true;
+            }
+            return false;
+        });
+    }
+
+    _getFieldNeighbours(field) {
+        let neighbourCoords = [
+        [field.x - 1, field.y - 1],
+        [field.x, field.y - 1],
+        [field.x + 1, field.y - 1],
+        [field.x - 1, field.y],
+        [field.x + 1, field.y],
+        [field.x - 1, field.y + 1],
+        [field.x, field.y + 1],
+        [field.x + 1, field.y + 1],
+        ];
+
+        let neighbours = [];
+
+        for (let neighbour of neighbourCoords) {
+            let field = this._getFieldAt(neighbour[0], neighbour[1]);
+            if (field) {
+                neighbours.push(field)
+            }
+        }
+
+        return neighbours;
     }
 
     draw(ctx) {
@@ -67,13 +133,14 @@ class FieldItem {
     }
 }
 
+
 class Bomb extends FieldItem {
 
     constructor(field) {
         super(field);
         this.circle = new Circle({x: this.field.xPosition + this.field.size / 2,
                                 y: this.field.yPosition + this.field.size / 2},
-                                6, '#452200');
+                                6, '#FFFF00');
     }
 
     clicked() {
@@ -81,9 +148,10 @@ class Bomb extends FieldItem {
     }
 
     draw(ctx) {
-       this.circle.draw(ctx)
+       this.circle.draw(ctx);
     }
 }
+
 
 class Field {
 
@@ -93,27 +161,33 @@ class Field {
         this.size = size;
         this.rect = new Rectangle({x, y}, size, size, '#AAFFF4', '#FF0000');
 
-        this.uncovered = false;
+        this.uncovered = true;
 
         Field.nextIndex = Field.nextIndex == undefined ? 0: ++Field.nextIndex;
         this.index = Field.nextIndex;
+
+        this.neighbours = [];
     }
 
     draw(ctx) {
         this.rect.draw(ctx);
 
         if (this.uncovered) {
-            this.rect.color = 'coral';
-
-            this?.item?.draw(ctx);
+            if (this.bombsNearby) {
+                ctx.font = '48px serif';
+                ctx.fillStyle = '#FF0000'
+                ctx.fillText(this.bombsNearby, this.xPosition + 10, this.yPosition + 42);
+            } else {
+                this.item?.draw(ctx);
+            }
         }
     }
 
     clicked(x, y) {
-        console.log(`Clicked on field no. ${this.index} [${x}, ${y}]`);
+        console.log(`Clicked on field no. ${this.index} [${this.x}, ${this.y}][${x}, ${y}]`);
         if (!this.uncovered) {
             this.uncovered = true;
-            this._item?.clicked();
+            this.item?.clicked();
         }
     }
 
@@ -126,12 +200,6 @@ class Field {
     }
 
     _item = undefined;
-}
-
-
-class Button {
-
-    constructor() {}
 }
 
 
