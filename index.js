@@ -10,13 +10,13 @@ class Board {
         this.tileSize = 50;
         this.xPosition = x;
         this.yPosition = y;
-        this.bombNumber = 60;
+        this.bombNumber = 10;
 
         this.children = [];
         this.fields = []
 
         // Add background
-        let rect = new Rectangle({x, y}, size * this.tileSize, size * this.tileSize, '#00FF00', '#550033');
+        let rect = new Rectangle({x, y}, size * this.tileSize, size * this.tileSize, '#AA2233', '#550033');
         this.children.push(rect);
 
         // Add fields
@@ -140,11 +140,11 @@ class Bomb extends FieldItem {
         super(field);
         this.circle = new Circle({x: this.field.xPosition + this.field.size / 2,
                                 y: this.field.yPosition + this.field.size / 2},
-                                6, '#FFFF00');
+                                6, '#d96499');
     }
 
     clicked() {
-        console.log("BOMB");
+        alert("Game over");
     }
 
     draw(ctx) {
@@ -159,14 +159,15 @@ class Field {
         this.xPosition = x;
         this.yPosition = y;
         this.size = size;
-        this.rect = new Rectangle({x, y}, size, size, '#AAFFF4', '#FF0000');
+        this.rect = new Rectangle({x, y}, size, size, '#0ba0dd', '#1b885e');
 
-        this.uncovered = true;
+        this.uncovered = false;
 
         Field.nextIndex = Field.nextIndex == undefined ? 0: ++Field.nextIndex;
         this.index = Field.nextIndex;
 
         this.neighbours = [];
+        this.bombsNearby = 0;
     }
 
     draw(ctx) {
@@ -187,7 +188,17 @@ class Field {
         console.log(`Clicked on field no. ${this.index} [${this.x}, ${this.y}][${x}, ${y}]`);
         if (!this.uncovered) {
             this.uncovered = true;
+            this.rect.color = '#365393';
+            this.rect.borderColor = '#77549d';
             this.item?.clicked();
+            // Recursively click on neighbours if no bombs nearby and no bomb on field
+            if (!this.bombsNearby && !this.item) {
+                for (let neighbour of this.neighbours) {
+                    if (!neighbour.item) {
+                        neighbour.clicked(x, y);
+                    }
+                }
+            }
         }
     }
 
