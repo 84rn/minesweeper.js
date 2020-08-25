@@ -5,130 +5,164 @@
 
 class Board {
 
-    constructor(x, y, size) {
-        this.size = size;
-        this.tileSize = 50;
-        this.xPosition = x;
-        this.yPosition = y;
-        this.bombNumber = 10;
+    constructor(x, y, size, bombs, tileSize = 50) {
+        // Basic config object
+        this.config = {
+            size,
+            tileSize,
+            x,
+            y,
+            bombs,
+        };
 
-        this.children = [];
-        this.fields = []
+        this.fields = [];
+    }
 
+    init(canvas) {
+        this.canvas = canvas;
         // Add background
-        let rect = new Rectangle({x, y}, size * this.tileSize, size * this.tileSize, '#AA2233', '#550033');
-        this.children.push(rect);
+        this.canvas.addChild(new Rectangle({x: this.config.x, y: this.config.y},
+                                           this.config.size * this.config.tileSize,
+                                           this.config.size * this.config.tileSize,
+                                           '#AA2233', '#550033'));
 
+        this._setupFields();
+        this._setupBombs();
+        this._setupBombCounts();
+
+        this.fields.forEach(element => this.canvas.addChild(element));
+    }
+
+    _setupFields() {
         // Add fields
-        for (let h = 0; h < size; h++) {
-            for (let w = 0; w < size; w++)
+        for (let h = 0; h < this.config.size; h++) {
+            for (let w = 0; w < this.config.size; w++)
             {
-                let field = new Field(x + w * this.tileSize, y + h * this.tileSize, this.tileSize);
-                field.x = w;
-                field.y = h;
+                let field = new Field(this.config.x + w * this.config.tileSize,
+                                      this.config.y + h * this.config.tileSize,
+                                      this.config.tileSize);
+                // Add field coordinates (different than drawing coords)
+                field.boardX = w;
+                field.boardY = h;
 
-                this.children.push(field);
                 this.fields.push(field);
-
             }
         }
+    }
 
+    _setupBombs() {
         // Fill with bombs
-        for(let num = this.bombNumber; num > 0; --num) {
-            let randomIndex = Math.floor(Math.random() * Field.nextIndex);
-            let field = this.fields.find((element, index, array) => {
-                if (element.index == randomIndex) {
-                    console.log(`RETURNING FIELD ${element.index}`);
-                    return true;
-                }
-
-                return false;
-            });
-            field.item = new Bomb(field);
+        let bombIndexes = [];
+        for (let bombs = this.config.bombs; bombs > 0; bombs--) {
+            let index;
+            // Only unique indexes for bombs
+            do {
+                index = Math.ceil(Math.random() * Field.nextIndex);
+            } while(bombIndexes.includes(index));
+            bombIndexes.push(index);
         }
 
-        // Count bombs nearby for each field without a bomb
-        for (let field of this.fields) {
-            if (field.item instanceof Bomb)
-                continue;
-            field.neighbours = this._getFieldNeighbours(field);
-            field.bombsNearby = field.neighbours.filter((element) => {
-                return element.item instanceof Bomb;
-            }).length;
-
-        }
+        this.fields.filter(element => bombIndexes.includes(element.index)).forEach(element => {
+            element.item = new Bomb(element);
+        });
 
     }
 
-    _getFieldAt(x, y) {
-        return this.fields.find((element) => {
-            if (element.x == x && element.y == y) {
-                return true;
+    _setupBombCounts() {
+        // Count bombs nearby for each field without a bomb
+        this.fields.filter(field => !(field.item instanceof Bomb)).forEach(field => {
+            field.neighbours = this._getFieldNeighbours(field);
+            field.bombsNearby = field.neighbours.filter(field => field.item instanceof Bomb).length;
+            if (field.bombsNearby) {
+                // Setup text
+                let text = new Text(field.bombsNearby);
+                text.context = this.canvas.context;
+                let metrics = text.metrics;
+                let displayCoords = {
+                    x: field.x  + (field.size - metrics.width) / 2,
+                    y: field.y  + (field.size - text.size) / 2
+                };
+                field.item = new Text(field.bombsNearby, displayCoords.x, displayCoords.y, '#FF0000');
             }
-            return false;
         });
+    }
+
+    _getFieldAt(x, y) {
+        return this.fields.find(field => field.boardX == x && field.boardY == y);
     }
 
     _getFieldNeighbours(field) {
         let neighbourCoords = [
-        [field.x - 1, field.y - 1],
-        [field.x, field.y - 1],
-        [field.x + 1, field.y - 1],
-        [field.x - 1, field.y],
-        [field.x + 1, field.y],
-        [field.x - 1, field.y + 1],
-        [field.x, field.y + 1],
-        [field.x + 1, field.y + 1],
+        [field.boardX - 1, field.boardY - 1],
+        [field.boardX    , field.boardY - 1],
+        [field.boardX + 1, field.boardY - 1],
+        [field.boardX - 1, field.boardY],
+        [field.boardX + 1, field.boardY],
+        [field.boardX - 1, field.boardY + 1],
+        [field.boardX    , field.boardY + 1],
+        [field.boardX + 1, field.boardY + 1],
         ];
 
-        let neighbours = [];
-
-        for (let neighbour of neighbourCoords) {
-            let field = this._getFieldAt(neighbour[0], neighbour[1]);
-            if (field) {
-                neighbours.push(field)
-            }
-        }
-
-        return neighbours;
+        return neighbourCoords.map(coords => this._getFieldAt(coords[0], coords[1])).filter(field => field);
     }
 
-    draw(ctx) {
-        for (let child of this.children) {
-            child.draw(ctx);
+    click(x, y) {
+        if (x >= this.config.x && x < this.config.x + this.config.size * this.config.tileSize &&
+            y >= this.config.y && y < this.config.y + this.config.size * this.config.tileSize) {
+                // Clicked on the board
+                let boardX = x - this.config.x;
+                let boardY = y - this.config.y;
+
+                let fieldX = Math.floor(boardX / this.config.tileSize);
+                let fieldY = Math.floor(boardY / this.config.tileSize);
+
+                let clickedField = this.fields.find(field => field.boardX == fieldX &&
+                                                             field.boardY == fieldY &&
+                                                             field.__proto__.hasOwnProperty('click'));
+
+                clickedField.click();
         }
     }
 
-    clicked(x, y) {
-        if (x > this.xPosition && x < this.xPosition + this.size * this.tileSize &&
-            y > this.yPosition && y < this.yPosition + this.size * this.tileSize) {
-            let clickedField = this.children.find((element, index, array) => {
-                if (x > element.xPosition && x < element.xPosition + this.tileSize &&
-                    y > element.yPosition && y < element.yPosition + this.tileSize &&
-                    element.__proto__.hasOwnProperty('clicked')) {
-                    return true;
-                } else {
-                    return false;
-                }
-            })
+    get width() {
+        return this.config.size * this.config.tileSize;
+    }
+}
 
-            clickedField?.clicked(x - clickedField.xPosition, y - clickedField.yPosition);
-        }
+class Shape {
+
+    _context = undefined;
+
+    constructor() {
+
+    }
+
+    draw() {
+
+    }
+
+    set context(value) {
+        this._context = value;
+    }
+
+    get context() {
+        return this._context;
+    }
+
+    set context(value) {
+        this._context = value;
     }
 }
 
 
-class FieldItem {
+class FieldItem extends Shape {
 
     constructor(field) {
+        super();
         this.field = field;
     }
 
-    clicked() {
-
-    }
-
-    draw(ctx) {
+    click() {
 
     }
 }
@@ -138,28 +172,35 @@ class Bomb extends FieldItem {
 
     constructor(field) {
         super(field);
-        this.circle = new Circle({x: this.field.xPosition + this.field.size / 2,
-                                y: this.field.yPosition + this.field.size / 2},
+        this.shape = new Circle({x: this.field.x + this.field.size / 2,
+                                y: this.field.y + this.field.size / 2},
                                 6, '#d96499');
     }
 
-    clicked() {
+    click() {
         alert("Game over");
     }
 
-    draw(ctx) {
-       this.circle.draw(ctx);
+    draw() {
+       this.shape.draw();
+    }
+
+    set context(value) {
+        this.shape.context = value;
     }
 }
 
 
-class Field {
+class Field extends Shape {
+
+    item = undefined;
 
     constructor(x, y, size) {
-        this.xPosition = x;
-        this.yPosition = y;
+        super();
+        this.x = x;
+        this.y = y;
         this.size = size;
-        this.rect = new Rectangle({x, y}, size, size, '#0ba0dd', '#1b885e');
+        this.shape = new Rectangle({x, y}, size, size, '#0ba0dd', '#1b885e');
 
         this.uncovered = false;
 
@@ -170,34 +211,25 @@ class Field {
         this.bombsNearby = 0;
     }
 
-    draw(ctx) {
-        this.rect.draw(ctx);
+    draw() {
+            this.shape.draw();
 
-        if (this.uncovered) {
-            if (this.bombsNearby) {
-                ctx.font = '48px serif';
-                ctx.fillStyle = '#FF0000'
-                ctx.fillText(this.bombsNearby, this.xPosition + 10, this.yPosition + 42);
-            } else {
-                this.item?.draw(ctx);
+            if (this.uncovered) {
+                this.item?.draw();
             }
         }
-    }
 
-    clicked(x, y) {
-        console.log(`Clicked on field no. ${this.index} [${this.x}, ${this.y}][${x}, ${y}]`);
+    click() {
+        // console.log(`Clicked on field no. ${this.index} [${this.boardX}, ${this.boardY}]`);
         if (!this.uncovered) {
             this.uncovered = true;
-            this.rect.color = '#365393';
-            this.rect.borderColor = '#77549d';
-            this.item?.clicked();
+            this.shape.color = '#365393';
+            this.shape.borderColor = '#77549d';
+            this.item?.click();
+
             // Recursively click on neighbours if no bombs nearby and no bomb on field
-            if (!this.bombsNearby && !this.item) {
-                for (let neighbour of this.neighbours) {
-                    if (!neighbour.item) {
-                        neighbour.clicked(x, y);
-                    }
-                }
+            if (!this.bombsNearby && !(this.item instanceof Bomb)) {
+                this.neighbours.filter(field => !(field.item instanceof Bomb)).forEach(field => field.click());
             }
         }
     }
@@ -210,25 +242,32 @@ class Field {
         return this._item;
     }
 
-    _item = undefined;
+    set context(value) {
+        this._context = value;
+        // All shapes within need the context too, take one from parent
+        if (this.shape) {
+            this.shape.context = value;
+        }
+        if (this.item) {
+            this.item.context = value;
+        }
+    }
 }
 
 
-class Line {
+class Line extends Shape {
 
     constructor(pointA, pointB, color) {
-        console.log(`Creating line: [${pointA.x}, ${pointA.y}] [${color}]`);
+        // console.log(`Creating line: [${pointA.x}, ${pointA.y}] [${color}]`);
+        super();
+
         this.pointA = pointA;
         this.pointB = pointB;
         this.color = color;
     }
 
-    draw(ctx) {
-        this._draw(ctx, this.pointA, this.pointB, this.color);
-    }
-
-    update(newX, newY) {
-        this.pointB = {x: newX, y: newY};
+    draw() {
+        this._draw(this.context, this.pointA, this.pointB, this.color);
     }
 
     _draw(ctx, pointA, pointB, color) {
@@ -243,22 +282,23 @@ class Line {
 }
 
 
-class Circle {
+class Circle extends Shape {
 
-    constructor(centerPoint, r, color) {
-        console.log(`Creating circle: [${centerPoint.x}, ${centerPoint.y}] [${r}] [${color}]`);
+    constructor(centerPoint, r, color, borderColor = false) {
+        // console.log(`Creating circle: [${centerPoint.x}, ${centerPoint.y}] [${r}] [${color}]`);
+        super();
+
         this.center = centerPoint;
         this.radius = r;
         this.color = color;
+        this.borderColor = borderColor;
     }
 
-    draw(ctx) {
-        this._draw(ctx, this.center, this.radius, this.color);
-    }
-
-    // Add update method with mouse coordinates
-    update(newX, newY) {
-        this.radius = Math.sqrt(Math.pow(this.center.x - newX, 2) + Math.pow(this.center.y - newY, 2));
+    draw() {
+        this._draw(this.context, this.center, this.radius, this.color);
+        if (this.borderColor) {
+            this._draw(this.context, this.anchorPoint, this.width, this.height, this.borderColor, false);
+        }
     }
 
     _draw(ctx, centerPoint, r, color, fill = true) {
@@ -280,10 +320,12 @@ class Circle {
 }
 
 
-class Rectangle {
+class Rectangle extends Shape {
 
     constructor(anchorPoint, width, height, color, borderColor = false) {
-        console.log(`Creating rectangle: [${anchorPoint.x}, ${anchorPoint.y}] [${width}x${height}] [${color}+[${borderColor}]]`);
+        // console.log(`Creating rectangle: [${anchorPoint.x}, ${anchorPoint.y}] [${width}x${height}] [${color}+[${borderColor}]]`);
+        super();
+
         this.anchorPoint = anchorPoint;
         this.width = width;
         this.height = height;
@@ -291,97 +333,175 @@ class Rectangle {
         this.borderColor = borderColor;
     }
 
-    draw(ctx) {
-        this._draw(ctx, this.anchorPoint, this.width, this.height, this.color);
+    draw() {
+        this._draw(this.context, this.anchorPoint, this.width, this.height, this.color);
         if (this.borderColor) {
-            this._draw(ctx, this.anchorPoint, this.width, this.height, this.borderColor, false);
+            this._draw(this.context, this.anchorPoint, this.width, this.height, this.borderColor, false);
         }
     }
 
-    // Add update method with mouse coordinates
-    update(newX, newY) {
-        this.width = newX - this.anchorPoint.x;
-        this.height = newY - this.anchorPoint.y;
-    }
-
-    _draw(ctx, anchorPoint, width, height, color, fill = true) {
+    _draw(context, anchorPoint, width, height, color, fill = true) {
         if (fill) {
-            ctx.fillStyle = color;
+            context.fillStyle = color;
         } else {
-            ctx.strokeStyle = color;
+            context.strokeStyle = color;
         }
 
         if (fill) {
-            ctx.fillRect(anchorPoint.x, anchorPoint.y, width, height);
+            context.fillRect(anchorPoint.x, anchorPoint.y, width, height);
         } else {
-            ctx.strokeRect(anchorPoint.x, anchorPoint.y, width, height);
+            context.strokeRect(anchorPoint.x, anchorPoint.y, width, height);
         }
     }
 }
 
 
-class Game {
-    constructor(canvasID) {
-        // Get HTML canvas
-        this.canvas = document.getElementById(canvasID);
-        this.ctx = this.canvas.getContext('2d');
+class Text extends Shape {
+
+    constructor(text, x = 0, y = 0, color = 'red') {
+        // console.log(`Creating text ${text}`);
+        super();
+        this.text = text;
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.textBaseline = 'top';
+    }
+
+    set size(value) {
+        this._size = value;
+    }
+
+    get size() {
+        return this._size;
+    }
+
+    set font(value) {
+        this.font = value;
+    }
+
+    get font() {
+        return this._font;
+    }
+
+    get metrics() {
+        this._setParameters();
+        return this.context.measureText(this.text);
+    }
+
+    _fontStyle() {
+        return [this.size + 'px', this.font].join(' ');
+    }
+
+    _setParameters() {
+        this.context.fillStyle = this.color;
+        this.context.font = this._fontStyle();
+        // Text (x,y) marks the upper left corner of bounding box
+        this.context.textBaseline = this.textBaseline;
+    }
+
+    draw() {
+        this._setParameters();
+        this.context.fillText(this.text, this.x, this.y);
+    }
+
+    click() {
+
+    }
+
+    // Default font size
+    _size = 25;
+    _font = 'serif';
+ }
+
+
+class Canvas {
+
+    constructor(id, width = undefined, height = undefined) {
+        // Get HTML canvas and context
+        this._canvas = document.getElementById(id);
+        this._context = this._canvas.getContext('2d');
 
         // Set canvas w x h
-        this.ctx.canvas.width = window.innerWidth;
-        this.ctx.canvas.height = window.innerHeight;
+        this._context.canvas.width = width ? width : window.innerWidth;
+        this._context.canvas.height = height ? height : window.innerHeight;
 
-        // Canvas animation data
-        this.frame = 0n;
-        this.last = 0;
-        this.fps = 0;
+        this._children = [];
+    }
 
-        this.drawableObjects = [];
-        this.currentlyDrawn = undefined;
+    addChild(child) {
+        child.context = this._context;
+        this._children.push(child);
+        return child;
+    }
+
+    get children() {
+        return this._children;
+    }
+
+    render() {
+        this._clearScene();
+        this._drawScene();
+    }
+
+    _clearScene() {
+        this._context.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    }
+
+    _drawScene() {
+        for (let child of this._children) {
+            if (child.__proto__.hasOwnProperty('draw')) {
+                child.draw();
+            }
+        }
+    }
+
+    get context() {
+        return this._context;
+    }
+
+    set context(value) {
+        this._context = value;
+    }
+}
+
+
+class Game {
+
+    constructor(canvas) {
+        // Create a basic config object
+        this.config = {
+            boardSize: 10,
+            boardTileSize: 50,
+            boardX   : 0,
+            boardY   : 0,
+            bombs    : 10,
+        };
+
+        // Get HTML canvas
+        this.canvas = new Canvas(canvas);
+
+        this.config.boardX = (this.canvas.context.canvas.width  - this.config.boardSize * this.config.boardTileSize) / 2;
+        this.config.boardY = (this.canvas.context.canvas.height - this.config.boardSize * this.config.boardTileSize) / 2;
 
         // Bind the function to object for animation callback
         this._loop = this._loop.bind(this);
 
+        // Install some callbacks for input
         this._installEventHandlers();
     }
 
     start() {
+        this.board = new Board(this.config.boardX,
+                               this.config.boardY,
+                               this.config.boardSize,
+                               this.config.bombs,
+                               this.config.boardTileSize);
 
-        // 10x10 board
-        let boardSize = 10;
+        this.board.init(this.canvas);
 
-        this.board = new Board(100, 100, boardSize);
-        this.drawableObjects.push(this.board);
-
+        // Install game loop callback
         requestAnimationFrame(this._loop);
-    }
-
-    _drawFPS(x = 0, y = 40) {
-        this.ctx.clearRect(0, 0, 60, 50);
-        this.ctx.font = '48px serif';
-        this.ctx.fillText(this.fps, x, y);
-    }
-
-    _drawObjectNumber(array, x = 0, y = 40) {
-        this.ctx.clearRect(0, 0, 160, 50);
-        this.ctx.font = '48px serif';
-        this.ctx.fillText(array.length, x, y);
-    }
-
-    _drawObjects() {
-        for (let ob of this.drawableObjects) {
-            ob.draw(this.ctx);
-        }
-    }
-
-    _drawScene() {
-        this._drawObjects();
-        // this._drawObjectNumber(this.drawableObjects);
-        this._drawFPS();
-    }
-
-    _render() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this._drawScene();
     }
 
     _update(milliseconds) {
@@ -389,7 +509,7 @@ class Game {
     }
 
     _moveScene(milliseconds) {
-        // drawableObjects.push(new RandomObject());
+
     }
 
     _loop(timestamp) {
@@ -399,7 +519,7 @@ class Game {
         ++this.frame;
 
         this._update(elapsed);
-        this._render();
+        this.canvas.render();
 
         requestAnimationFrame(this._loop);
     }
@@ -437,7 +557,7 @@ class Game {
         // Left mouse button
         if (event.buttons == 1) {
             // Check for clicks on board
-            this.board?.clicked(point.x, point.y);
+            this.board?.click(point.x, point.y);
 
         } else if (event.buttons == 4) {
 
