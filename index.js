@@ -30,6 +30,7 @@ class Board {
         this._setupBombs();
         this._setupBombCounts();
 
+        // Add _context to all children automatically
         this.fields.forEach(element => this.canvas.addChild(element));
     }
 
@@ -225,7 +226,9 @@ class Field extends Shape {
             this.uncovered = true;
             this.shape.color = '#365393';
             this.shape.borderColor = '#77549d';
-            this.item?.click();
+            if (this.item?.__proto__.hasOwnProperty('click')) {
+                this.item.click();
+            }
 
             // Recursively click on neighbours if no bombs nearby and no bomb on field
             if (!this.bombsNearby && !(this.item instanceof Bomb)) {
@@ -403,10 +406,6 @@ class Text extends Shape {
     draw() {
         this._setParameters();
         this.context.fillText(this.text, this.x, this.y);
-    }
-
-    click() {
-
     }
 
     // Default font size
