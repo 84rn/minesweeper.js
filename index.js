@@ -236,7 +236,7 @@ class Field extends Shape {
             this.uncovered = true;
             this.shape.color = '#ffd1d5';
             this.shape.borderColor = '#fa6e79';
-            if (this.item?.__proto__.hasOwnProperty('click')) {
+            if (this.item instanceof FieldItem) {
                 this.item.click();
             }
 
