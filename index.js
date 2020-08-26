@@ -537,13 +537,22 @@ class Game {
         this.onMouseDown = this.onMouseDown.bind(this);
         this.onMouseUp = this.onMouseUp.bind(this);
         this.onMouseMove = this.onMouseMove.bind(this);
+        this.onContextMenu = this.onContextMenu.bind(this);
 
         document.addEventListener('mousedown', this.onMouseDown);
         document.addEventListener('mouseup', this.onMouseUp);
         document.addEventListener('mousemove', this.onMouseMove);
+        document.addEventListener('contextmenu', this.onContextMenu);
     }
 
     // --------------- EVENT HANDLERS --------------
+
+    onContextMenu(event) {
+        // Turn off context menu
+        event.preventDefault();
+        // Don't propagade to canvas parent
+        event.stopPropagation();
+    }
 
     onMouseMove(event) {
         let point = {
