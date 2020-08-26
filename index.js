@@ -16,6 +16,16 @@ class Board {
         };
 
         this.fields = [];
+        this.bombCountColors = [
+        '#3859b3', // 1 -blue
+        '#5ab552', // 2 - green
+        '#8c78a5', // 3 - purple
+        '#ce9248', // 4 - brown
+        '#de5d3a', // 5 - orange
+        '#ac2847', // 6 - dark red
+        '#ec273f', // 7 - red
+        '#4d3533', // 8 - dark brown
+        ];
     }
 
     init(canvas) {
@@ -83,7 +93,7 @@ class Board {
                     x: field.x  + (field.size - metrics.width) / 2,
                     y: field.y  + (field.size - text.size) / 2
                 };
-                field.item = new Text(field.bombsNearby, displayCoords.x, displayCoords.y, '#FF0000');
+                field.item = new Text(field.bombsNearby, displayCoords.x, displayCoords.y, this.bombCountColors[field.bombsNearby]);
             }
         });
     }
@@ -201,7 +211,7 @@ class Field extends Shape {
         this.x = x;
         this.y = y;
         this.size = size;
-        this.shape = new Rectangle({x, y}, size, size, '#0ba0dd', '#1b885e');
+        this.shape = new Rectangle({x, y}, size, size,  '#fa6e79', '#ffd1d5');
 
         this.uncovered = false;
 
@@ -224,8 +234,8 @@ class Field extends Shape {
         // console.log(`Clicked on field no. ${this.index} [${this.boardX}, ${this.boardY}]`);
         if (!this.uncovered) {
             this.uncovered = true;
-            this.shape.color = '#365393';
-            this.shape.borderColor = '#77549d';
+            this.shape.color = '#ffd1d5';
+            this.shape.borderColor = '#fa6e79';
             if (this.item?.__proto__.hasOwnProperty('click')) {
                 this.item.click();
             }
