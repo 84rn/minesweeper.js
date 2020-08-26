@@ -102,6 +102,19 @@ class Board {
         return this.fields.find(field => field.boardX == x && field.boardY == y);
     }
 
+    _getFieldAtScreen(x, y) {
+        // Clicked on the board
+        let boardX = x - this.config.x;
+        let boardY = y - this.config.y;
+
+        let fieldX = Math.floor(boardX / this.config.tileSize);
+        let fieldY = Math.floor(boardY / this.config.tileSize);
+
+        return this.fields.find(field => field.boardX == fieldX &&
+                                                     field.boardY == fieldY);
+
+    }
+
     _getFieldNeighbours(field) {
         let neighbourCoords = [
         [field.boardX - 1, field.boardY - 1],
@@ -120,19 +133,20 @@ class Board {
     click(x, y) {
         if (x >= this.config.x && x < this.config.x + this.config.size * this.config.tileSize &&
             y >= this.config.y && y < this.config.y + this.config.size * this.config.tileSize) {
-                // Clicked on the board
-                let boardX = x - this.config.x;
-                let boardY = y - this.config.y;
+                let clickField = this._getFieldAtScreen(x, y);
 
-                let fieldX = Math.floor(boardX / this.config.tileSize);
-                let fieldY = Math.floor(boardY / this.config.tileSize);
-
-                let clickedField = this.fields.find(field => field.boardX == fieldX &&
-                                                             field.boardY == fieldY &&
-                                                             field.__proto__.hasOwnProperty('click'));
-
-                clickedField.click();
+                if (clickField.__proto__.hasOwnProperty('click')) {
+                    clickField.click();
+            }
         }
+    }
+
+    bulkUncover(x, y) {
+        this._getFieldAtScreen(x, y)?.bulkUncover();
+    }
+
+    mark(x, y) {
+        this._getFieldAtScreen(x, y)?.toggleMark();
     }
 
     get width() {
@@ -212,6 +226,7 @@ class Field extends Shape {
         this.y = y;
         this.size = size;
         this.shape = new Rectangle({x, y}, size, size,  '#fa6e79', '#ffd1d5');
+        this.markShape = new Rectangle({x: x + size / 3,y:  y + size / 3}, size / 3, size / 3, '#FFFF00');
 
         this.uncovered = false;
 
@@ -220,6 +235,9 @@ class Field extends Shape {
 
         this.neighbours = [];
         this.bombsNearby = 0;
+
+        // Flag on field
+        this.marked = false;
     }
 
     draw() {
@@ -227,13 +245,21 @@ class Field extends Shape {
 
             if (this.uncovered) {
                 this.item?.draw();
+            } else if (this.marked) {
+                this.markShape.draw();
             }
-        }
+    }
+
+    toggleMark() {
+        this.marked = !this.marked;
+    }
 
     click() {
         // console.log(`Clicked on field no. ${this.index} [${this.boardX}, ${this.boardY}]`);
         if (!this.uncovered) {
             this.uncovered = true;
+            // Unmark
+            this.marked = false;
             this.shape.color = '#ffd1d5';
             this.shape.borderColor = '#fa6e79';
             if (this.item instanceof FieldItem) {
@@ -243,6 +269,16 @@ class Field extends Shape {
             // Recursively click on neighbours if no bombs nearby and no bomb on field
             if (!this.bombsNearby && !(this.item instanceof Bomb)) {
                 this.neighbours.filter(field => !(field.item instanceof Bomb)).forEach(field => field.click());
+            }
+        }
+    }
+
+    bulkUncover() {
+        if (this.uncovered && this.bombsNearby) {
+            let coveredNeighbours = this.neighbours.filter(field => !field.uncovered);
+            let markedNeighbours = coveredNeighbours.filter(field => field.marked);
+            if (markedNeighbours.length == this.bombsNearby) {
+                coveredNeighbours.filter(field => !field.marked).forEach(field => field.click());
             }
         }
     }
@@ -260,6 +296,9 @@ class Field extends Shape {
         // All shapes within need the context too, take one from parent
         if (this.shape) {
             this.shape.context = value;
+        }
+        if (this.markShape) {
+            this.markShape.context = value;
         }
         if (this.item) {
             this.item.context = value;
@@ -480,11 +519,11 @@ class Game {
     constructor(canvas) {
         // Create a basic config object
         this.config = {
-            boardSize: 10,
-            boardTileSize: 50,
+            boardSize: 20,
+            boardTileSize: 30,
             boardX   : 0,
             boardY   : 0,
-            bombs    : 10,
+            bombs    : 50,
         };
 
         // Get HTML canvas
@@ -577,8 +616,10 @@ class Game {
             // Check for clicks on board
             this.board?.click(point.x, point.y);
 
+        } else if (event.buttons == 2) {
+            this.board?.mark(point.x, point.y);
         } else if (event.buttons == 4) {
-
+            this.board?.bulkUncover(point.x, point.y);
         }
     }
 
